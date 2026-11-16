@@ -1,0 +1,17 @@
+{
+  "name": "android-upstream-audit",
+  "owner": {
+    "name": "KODE LLC",
+    "url": "https://github.com/appKODE"
+  },
+  "plugins": [
+    {
+      "name": "android-upstream-audit",
+      "description": "Manually started audit of an Android project's Kotlin/Android toolchain against what was published upstream: Kotlin, AGP, Google Play requirements, Android API levels, AndroidX and Jetpack Compose.",
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/appKODE/android-upstream-audit",
+      "license": "MIT"
+    }
+  ]
+}
