@@ -4,6 +4,9 @@
     "name": "KODE LLC",
     "url": "https://github.com/appKODE"
   },
+  "metadata": {
+    "description": "Android upstream audit for Claude Code: what changed in Kotlin, AGP, Google Play and AndroidX that your project has to act on."
+  },
   "plugins": [
     {
       "name": "android-upstream-audit",
