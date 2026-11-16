@@ -1,0 +1,372 @@
+// Writes the build facts android-upstream-audit needs, as JSON: one file per build of the
+// composite (the root one, every included build, buildSrc), at the end of configuration.
+// Nothing is compiled and nothing in the project changes. Every value is read in try/catch, so a
+// value that cannot be read lands in "errors" instead of failing the build or vanishing.
+// facts.py runs it and turns the files into facts.json:
+//
+//   ./gradlew upstreamAuditFacts -q --no-configuration-cache -Dorg.gradle.isolated-projects=false -I audit-facts.init.gradle -DupstreamAudit.out=<dir>
+//
+// The task upstreamAuditResolved (resolved.py runs it, only when asked) resolves the release
+// runtime classpath of every application module and writes where Gradle picks another version
+// than the build asks for. Resolving needs the libraries' metadata, so it is a run of its own.
+
+import groovy.json.JsonOutput
+import org.gradle.api.artifacts.ExternalModuleDependency
+import org.gradle.api.artifacts.FileCollectionDependency
+import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.component.ModuleComponentSelector
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+
+def outDir = System.getProperty('upstreamAudit.out')
+if (!outDir) {
+  throw new GradleException('Pass -DupstreamAudit.out=<folder> for the facts JSON')
+}
+
+def KNOWN_PLUGINS = [
+  'com.android.application', 'com.android.library', 'com.android.test', 'com.android.dynamic-feature',
+  'org.jetbrains.kotlin.android', 'org.jetbrains.kotlin.jvm', 'org.jetbrains.kotlin.multiplatform',
+  'org.jetbrains.kotlin.plugin.compose', 'org.jetbrains.kotlin.plugin.serialization',
+  'com.google.devtools.ksp', 'java', 'java-library', 'java-gradle-plugin', 'groovy-gradle-plugin',
+  'org.gradle.kotlin.kotlin-dsl',
+]
+def PROPERTY_PREFIXES = ['android.', 'kotlin.', 'ksp.', 'org.gradle.']
+
+def safe = { List errors, String where, Closure read ->
+  try {
+    return read()
+  } catch (Throwable t) {
+    errors << "$where: ${t.class.simpleName}: ${t.message}".toString()
+    return null
+  }
+}
+def str = { v -> v == null || v.toString() == '' ? null : v.toString() }
+
+def repoFacts = { List errors, String where, repo ->
+  def f = [name: repo.name, type: repo.class.simpleName.replace('_Decorated', '')]
+  if (repo.hasProperty('url')) f.url = str(repo.url)
+  if (repo.hasProperty('dirs')) f.dirs = repo.dirs.collect { it.path }
+  if (repo.hasProperty('configuredCredentials')) {
+    f.credentials = safe(errors, "$where ${repo.name} credentials") { repo.configuredCredentials.isPresent() }
+  }
+  f
+}
+// Gradle copies the pluginManagement repositories into every project's buildscript; they are
+// already listed under settings.
+def isPluginRepositoryCopy = { repo -> repo.class.name.contains('PluginArtifactRepository') }
+def isGenerated = { String path -> path.contains("${File.separator}build${File.separator}") }
+
+def settingsByDir = [:]
+
+// An included build is configured only when one of its tasks is needed, so the task of the root
+// build depends on `:help` of every included build.
+if (gradle.parent == null) {
+  gradle.rootProject { Project p ->
+    p.tasks.register('upstreamAuditFacts') { t ->
+      t.description = 'Configures every build so that the android-upstream-audit init script writes its facts.'
+      t.dependsOn(p.gradle.includedBuilds.collect { it.task(':help') })
+    }
+  }
+}
+
+// The release runtime classpath of each application module: `releaseRuntimeClasspath`, or one per
+// flavor combination (`prodReleaseRuntimeClasspath`), not the benchmark or non-minified copies.
+def isReleaseClasspath = { String name, List flavors ->
+  if (name == 'releaseRuntimeClasspath') return true
+  if (!name.endsWith('ReleaseRuntimeClasspath')) return false
+  def rest = name - 'ReleaseRuntimeClasspath'
+  def names = flavors.sort { -it.length() }
+  while (rest) {
+    def f = names.find { rest.startsWith(it) || rest.startsWith(it.capitalize()) }
+    if (f == null) return false
+    rest = rest.substring(f.length())
+  }
+  true
+}
+
+if (gradle.parent == null) {
+  gradle.allprojects { Project p ->
+    p.pluginManager.withPlugin('com.android.application') {
+      p.tasks.register('upstreamAuditResolved') { t ->
+        t.description = 'Writes where Gradle resolves the release classpath above what the build asks for.'
+        t.notCompatibleWithConfigurationCache('reads resolution results')
+        t.doLast {
+          def errors = []
+          def flavors = []
+          try { flavors = p.extensions.findByName('android').productFlavors.collect { it.name } } catch (Throwable ignored) { }
+          def out = [project: p.path, configurations: [], resolved: 0, mismatches: [], errors: errors]
+          p.configurations.findAll { it.canBeResolved && isReleaseClasspath(it.name, flavors) }.each { c ->
+            try {
+              def result = c.incoming.resolutionResult
+              def components = result.allComponents
+              // What the build asks for: the versions our own modules request, and the constraints
+              // of the platforms (BOMs) they request. A library's own requests are not ours.
+              def asked = [:].withDefault { [] as Set }
+              def platforms = [] as Set
+              components.findAll { it.id instanceof ProjectComponentIdentifier }.each { comp ->
+                comp.dependencies.each { d ->
+                  if (d instanceof ResolvedDependencyResult && d.requested instanceof ModuleComponentSelector) {
+                    def r = d.requested
+                    if (r.version) asked["${r.group}:${r.module}".toString()] << r.version
+                    // platform(…) and enforcedPlatform(…): a BOM, whose constraints are ours too.
+                    def category = r.attributes.keySet().find { it.name == 'org.gradle.category' }
+                    if (category != null && r.attributes.getAttribute(category).toString().contains('platform')) {
+                      platforms << d.selected.id
+                    }
+                  }
+                }
+              }
+              components.findAll { platforms.contains(it.id) }.each { comp ->
+                comp.dependencies.each { d ->
+                  if (d.constraint && d.requested instanceof ModuleComponentSelector && d.requested.version) {
+                    asked["${d.requested.group}:${d.requested.module}".toString()] <<
+                      "${d.requested.version} (${comp.moduleVersion.group}:${comp.moduleVersion.name})".toString()
+                  }
+                }
+              }
+              def count = 0
+              components.findAll { it.id instanceof ModuleComponentIdentifier }.each { comp ->
+                count++
+                def key = "${comp.id.group}:${comp.id.module}".toString()
+                def wants = asked[key]
+                def versions = wants.collect { it.split(' ')[0] }
+                if (wants && !versions.contains(comp.id.version) && !versions.any { it.contains('+') || it.contains('[') }) {
+                  out.mismatches << [module: key, asked: wants.sort(), resolved: comp.id.version,
+                                     configuration: c.name,
+                                     reason: comp.selectionReason.descriptions.collect { it.description }.join('; ')]
+                }
+              }
+              out.configurations << c.name
+              out.resolved = Math.max(out.resolved, count)
+            } catch (Throwable e) {
+              errors << "${p.path} ${c.name}: ${e.class.simpleName}: ${e.message}".toString()
+            }
+          }
+          def file = new File(outDir, "resolved-${p.path.replaceAll(/[^\w.-]/, '_')}.json")
+          file.parentFile.mkdirs()
+          file.text = JsonOutput.prettyPrint(JsonOutput.toJson(out))
+        }
+      }
+    }
+  }
+}
+
+settingsEvaluated { Settings s ->
+  def errors = []
+  settingsByDir[s.settingsDir.path] = [
+    settingsFile: s.buildscript.sourceFile?.path,
+    pluginRepositories: safe(errors, 'pluginManagement repositories') {
+      s.pluginManagement.repositories.collect { repoFacts(errors, 'pluginManagement', it) }
+    },
+    repositories: safe(errors, 'dependencyResolutionManagement repositories') {
+      s.dependencyResolutionManagement.repositories.collect { repoFacts(errors, 'dependencyResolutionManagement', it) }
+    },
+    // buildscript { classpath "…" } of the settings script.
+    dependencies: safe(errors, 'settings buildscript dependencies') {
+      s.buildscript.configurations.collectMany { c ->
+        c.dependencies.findAll { it instanceof ExternalModuleDependency }
+          .collect { [module: "${it.group}:${it.name}".toString(), version: str(it.version)] }
+      }
+    },
+    errors: errors,
+  ]
+  println "upstream-audit: configuring build ${gradle.parent == null ? 'root' : s.rootProject.name}"
+}
+
+// Progress for the log facts.py writes while Gradle runs, so that a slow configuration can be
+// told from a hang. The counter is per build: the init script is applied to each one.
+def configured = 0
+def total = null
+gradle.afterProject { Project p ->
+  configured++
+  if (total == null) total = p.rootProject.allprojects.size()
+  if (configured % 50 == 0 || configured == total) {
+    println "upstream-audit: ${gradle.parent == null ? 'root' : p.rootProject.name}: configured $configured of $total projects"
+  }
+}
+
+gradle.projectsEvaluated { Gradle g ->
+  def errors = []
+  def root = g.rootProject
+  // Local files outside the folder gradlew ran in (the Android SDK's core-for-system-modules.jar)
+  // are not vendored artifacts of the project.
+  def projectTop = (g.startParameter.projectDir ?: g.startParameter.currentDir).canonicalPath + File.separator
+  def isVendored = { String path ->
+    (path.endsWith('.jar') || path.endsWith('.aar')) && path.startsWith(projectTop) && !isGenerated(path)
+  }
+  def facts = [
+    build: g.parent == null ? 'root' : root.name,
+    dir: root.projectDir.path,
+    gradleVersion: g.gradleVersion,
+    agpVersion: null,
+    kgpVersion: null,
+    settings: settingsByDir[root.projectDir.path],
+    includedBuilds: safe(errors, 'included builds') {
+      g.includedBuilds.collect { [name: it.name, dir: it.projectDir.path] }
+    },
+    properties: safe(errors, 'gradle properties') {
+      PROPERTY_PREFIXES.collectEntries { prefix ->
+        root.providers.gradlePropertiesPrefixedBy(prefix).get()
+      }.collectEntries { k, v -> [k, str(v)] }.sort()
+    },
+    catalogs: safe(errors, 'version catalogs') {
+      def ext = root.extensions.findByType(VersionCatalogsExtension)
+      ext == null ? [] : ext.collect { cat ->
+        [
+          name: cat.name,
+          versions: cat.versionAliases.collectEntries { a -> [a, str(cat.findVersion(a).get().requiredVersion)] },
+          libraries: cat.libraryAliases.collect { a ->
+            def d = cat.findLibrary(a).get().get()
+            [alias: a, module: "${d.module.group}:${d.module.name}".toString(),
+             version: str(d.versionConstraint.requiredVersion)]
+          },
+          plugins: cat.pluginAliases.collect { a ->
+            def d = cat.findPlugin(a).get().get()
+            [alias: a, id: d.pluginId, version: str(d.version.requiredVersion)]
+          },
+        ]
+      }
+    },
+    projects: [],
+    errors: errors,
+  ]
+
+  root.allprojects.each { p ->
+    def where = { String what -> "${p.path} $what".toString() }
+    def pf = [
+      path: p.path,
+      dir: p.projectDir.path,
+      buildFile: p.buildFile.exists() ? p.buildFile.path : null,
+      plugins: safe(errors, where('plugins')) { KNOWN_PLUGINS.findAll { p.pluginManager.hasPlugin(it) } },
+      pluginClasses: safe(errors, where('plugin classes')) {
+        p.plugins.collect { it.class.name.replace('_Decorated', '') }.unique().sort()
+      },
+    ]
+
+    def android = p.extensions.findByName('android')
+    if (android != null) {
+      pf.android = [
+        namespace: safe(errors, where('namespace')) { str(android.namespace) },
+        compileSdk: safe(errors, where('compileSdk')) {
+          def v = null
+          try { v = android.compileSdk } catch (Throwable ignored) { }
+          str(v) ?: str(android.compileSdkVersion)
+        },
+        minSdk: safe(errors, where('minSdk')) { str(android.defaultConfig.minSdk) },
+        targetSdk: safe(errors, where('targetSdk')) {
+          android.defaultConfig.hasProperty('targetSdk') ? str(android.defaultConfig.targetSdk) : null
+        },
+        // A product flavor can override minSdk and targetSdk; facts.py works out each variant's
+        // values. Read from the DSL, as defaultConfig: the variant API changes between AGP majors.
+        flavorDimensions: safe(errors, where('flavor dimensions')) { android.flavorDimensions.collect { it.toString() } },
+        productFlavors: safe(errors, where('product flavors')) {
+          android.productFlavors.collect { f ->
+            [name: f.name, dimension: str(f.dimension), minSdk: str(f.minSdk),
+             targetSdk: f.hasProperty('targetSdk') ? str(f.targetSdk) : null]
+          }
+        },
+        javaTarget: safe(errors, where('java target')) { str(android.compileOptions.targetCompatibility) },
+        kotlinOptionsJvmTarget: safe(errors, where('kotlinOptions jvmTarget')) {
+          def ko = android.extensions.findByName('kotlinOptions')
+          ko == null ? null : str(ko.jvmTarget)
+        },
+        manifest: safe(errors, where('manifest')) { android.sourceSets.findByName('main')?.manifest?.srcFile?.path },
+      ]
+      if (facts.agpVersion == null) {
+        facts.agpVersion = safe(errors, 'AGP version') {
+          Class.forName('com.android.Version', true, android.class.classLoader).ANDROID_GRADLE_PLUGIN_VERSION
+        }
+      }
+    }
+
+    def kotlin = p.extensions.findByName('kotlin')
+    if (kotlin != null) {
+      pf.kotlinJvmTarget = safe(errors, where('kotlin jvmTarget')) {
+        kotlin.hasProperty('compilerOptions') && kotlin.compilerOptions.hasProperty('jvmTarget')
+          ? str(kotlin.compilerOptions.jvmTarget.orNull) : null
+      }
+    }
+    if (facts.kgpVersion == null) {
+      def kp = ['org.jetbrains.kotlin.android', 'org.jetbrains.kotlin.jvm', 'org.jetbrains.kotlin.multiplatform']
+        .collect { p.plugins.findPlugin(it) }.find { it != null }
+      if (kp != null) facts.kgpVersion = safe(errors, 'KGP version') { kp.pluginVersion }
+    }
+    def java = p.extensions.findByName('java')
+    if (java != null) {
+      pf.javaToolchain = safe(errors, where('java toolchain')) { str(java.toolchain.languageVersion.orNull) }
+    }
+
+    def modules = [:]  // "group:name:version" -> configurations
+    def buckets = [] as Set  // the keys declared in a dependency bucket (implementation, api, ksp, …)
+    def localFiles = [] as Set
+    safe(errors, where('dependencies')) {
+      p.configurations.each { c ->
+        // A bucket is where a build script declares dependencies; a plugin adds its own tools to
+        // configurations it resolves itself (kotlinCompilerPluginClasspath…, unified-test-platform-…).
+        def bucket = !c.canBeResolved && !c.canBeConsumed
+        c.dependencies.each { d ->
+          if (d instanceof ExternalModuleDependency) {
+            def key = "${d.group}:${d.name}:${d.version ?: ''}".toString()
+            modules.computeIfAbsent(key) { [] as Set } << c.name
+            if (bucket) buckets << key
+          } else if (d instanceof FileCollectionDependency && bucket) {
+            // A vendored jar or AAR is declared by a build script. The files of a plugin's own
+            // configuration (AGP's androidJdkImage, from the SDK) are not, and reading them fails
+            // in every module when the SDK location is not set.
+            def files = safe(errors, where("files of ${c.name}")) {
+              d.files.files.collect { it.canonicalPath }.findAll(isVendored)
+            }
+            if (files) localFiles.addAll(files)
+          }
+        }
+        // A module that only wraps a jar or AAR: artifacts.add("default", file("sdk.aar")).
+        // Only "default": the artifacts of AGP's configurations would configure its bundle tasks.
+        if (c.name == 'default') {
+          def published = safe(errors, where('artifacts of default')) {
+            c.artifacts.collect { it.file.canonicalPath }.findAll(isVendored)
+          }
+          if (published) localFiles.addAll(published)
+        }
+      }
+    }
+    // buildscript { dependencies { classpath "…" } } lives in the build script's own configurations,
+    // apart from p.configurations; everything there is written by a person, though `classpath`
+    // is resolvable.
+    safe(errors, where('buildscript dependencies')) {
+      p.buildscript.configurations.each { c ->
+        c.dependencies.each { d ->
+          if (d instanceof ExternalModuleDependency) {
+            def key = "${d.group}:${d.name}:${d.version ?: ''}".toString()
+            modules.computeIfAbsent(key) { [] as Set } << "buildscript ${c.name}".toString()
+            buckets << key
+          }
+        }
+      }
+    }
+    pf.dependencies = modules.collect { k, v ->
+      def parts = k.split(':', -1)
+      [module: "${parts[0]}:${parts[1]}".toString(), version: str(parts[2]), configurations: v.sort(),
+       declared: buckets.contains(k)]
+    }.sort { it.module }
+    pf.localFiles = localFiles.sort()
+
+    pf.repositories = safe(errors, where('repositories')) {
+      (p.repositories + p.buildscript.repositories).findAll { !isPluginRepositoryCopy(it) }
+        .collect { repoFacts(errors, where('repositories'), it) }
+    }
+
+    if (p.pluginManager.hasPlugin('java-gradle-plugin')) {
+      pf.pluginSources = safe(errors, where('plugin sources')) {
+        p.extensions.findByName('sourceSets')?.findByName('main')?.allSource?.files
+          ?.collect { it.path }?.findAll { !isGenerated(it) }?.sort()
+      }
+    }
+    facts.projects << pf
+  }
+
+  def file = new File(outDir, "facts-${facts.build.replaceAll(/[^\w.-]/, '_')}.json")
+  file.parentFile.mkdirs()
+  file.text = JsonOutput.prettyPrint(JsonOutput.toJson(facts))
+  println "upstream-audit facts: ${file} (${facts.projects.size()} projects, ${errors.size()} errors)"
+}
