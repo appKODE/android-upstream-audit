@@ -1,6 +1,7 @@
 """releases.py: dependency entries, version comparison, failed calls."""
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -271,6 +272,40 @@ class Releases(unittest.TestCase):
             common.curl = original
         self.assertEqual(calls[0][0], 'https://api.github.com/repos/google/ksp/releases?per_page=5')
         self.assertIn('Accept: application/vnd.github+json', calls[0][1])
+
+    def test_gh_is_used_only_when_it_is_logged_in(self):
+        calls = []
+
+        def auth_status(returncode):
+            def run(cmd, **kwargs):
+                calls.append((cmd, kwargs))
+                if returncode is None:
+                    raise subprocess.TimeoutExpired(cmd, kwargs.get('timeout'))
+                return subprocess.CompletedProcess(cmd, returncode)
+            return run
+
+        with mock.patch.object(releases.shutil, 'which', return_value=None):
+            client, why = releases.github_client()
+        self.assertEqual((client, calls), ('curl', []))
+        self.assertIn('gh is not installed', why)
+
+        for returncode, expected, reason in [(0, 'gh', None), (1, 'curl', 'gh is installed but not logged in'),
+                                             (None, 'curl', '`gh auth status` failed')]:
+            with self.subTest(returncode=returncode):
+                calls.clear()
+                with mock.patch.object(releases.shutil, 'which', return_value='/usr/bin/gh'), \
+                        mock.patch.object(releases.subprocess, 'run', auth_status(returncode)):
+                    client, why = releases.github_client()
+                self.assertEqual(client, expected)
+                if reason:
+                    self.assertIn(reason, why)
+                    self.assertIn('60 requests an hour', why)
+                else:
+                    self.assertIsNone(why)
+                cmd, kwargs = calls[0]
+                self.assertEqual(cmd, ['gh', 'auth', 'status', '--hostname', 'github.com'])
+                # Its output names the account and a masked token: never read, never printed.
+                self.assertEqual((kwargs['stdout'], kwargs['stderr']), (subprocess.DEVNULL, subprocess.DEVNULL))
 
     def test_curl_sends_no_authorization_even_with_github_token(self):
         calls = []
