@@ -125,7 +125,7 @@ def upkeep_line(out):
     if q.get('sources_failed'):
         parts.append(f"{q['sources_failed']} sources failed")
     if q.get('github_client') == 'curl':
-        parts.append('GitHub queried with curl, gh is not installed — install gh for authenticated requests')
+        parts.append('GitHub queried with curl, unauthenticated (60 requests an hour) — install and authenticate gh')
     if q.get('dependencies_not_checked'):
         parts.append(f"{len(q['dependencies_not_checked'])} dependencies not checked")
     if (q.get('resolved_versions') or {}).get('status') in ('failed', 'timeout'):

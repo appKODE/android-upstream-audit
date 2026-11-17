@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 import fixtures  # noqa: F401  (puts the scripts on sys.path)
 import common  # noqa: E402
@@ -270,6 +271,14 @@ class Releases(unittest.TestCase):
             common.curl = original
         self.assertEqual(calls[0][0], 'https://api.github.com/repos/google/ksp/releases?per_page=5')
         self.assertIn('Accept: application/vnd.github+json', calls[0][1])
+
+    def test_curl_sends_no_authorization_even_with_github_token(self):
+        calls = []
+        fake_curl = lambda url, path=None, headers=None: calls.append(headers) or '[]'  # noqa: E731
+        with mock.patch.object(common, 'curl', fake_curl), \
+                mock.patch.dict(os.environ, {'GITHUB_TOKEN': 'test-token'}):
+            releases.github('repos/google/ksp/releases?per_page=5', 'curl')
+        self.assertEqual(calls, [['Accept: application/vnd.github+json']])
 
 
 if __name__ == '__main__':
