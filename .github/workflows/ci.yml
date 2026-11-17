@@ -28,18 +28,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The oldest Python the skill supports (README, Requirements) and the newest. Both in one
-      # job, so the required check keeps its name.
+      # The oldest Python the skill supports (README, Requirements) and the newest stable one
+      # (3.x, so a new release is picked up without editing this file). Both in one job, so the
+      # required check keeps its name. The last version listed is the default `python`.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: |
             3.9
-            3.15
+            3.x
       - name: Tests on Python 3.9
         run: python3.9 -m unittest discover skills/android-upstream-audit/scripts/tests
-      - name: Tests on Python 3.15
+      - name: Tests on the newest Python
         if: success() || failure()
-        run: python3.15 -m unittest discover skills/android-upstream-audit/scripts/tests
+        run: python -m unittest discover skills/android-upstream-audit/scripts/tests
 
   plugin-validation:
     name: Plugin validation
@@ -130,7 +131,7 @@ jobs:
       - if: steps.changes.outputs.run == 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.15'
+          python-version: '3.x'
       - if: steps.changes.outputs.run == 'true'
         uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
