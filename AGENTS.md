@@ -228,11 +228,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   `git rebase -i --autosquash`); no "wip", "fix review" or "address comments" commits on `main`.
 - Rebase the branch on the current `main` instead of merging `main` into it; no merge commits.
 - CI (`.github/workflows/ci.yml`) runs on every PR, and the ruleset of `main` requires its checks
-  to pass: *Tests*, *Plugin validation* (`claude plugin validate . --profile directory`),
-  *Commit messages* (every commit against *Commits*; merge and `fixup!`/`squash!` commits fail)
-  and *Gradle test* (runs Gradle only when `audit-facts.init.gradle`, `facts.py` or
-  `tests/test_facts.py` changes). When you rename
-  a job, update the ruleset's required checks too.
+  to pass. When you rename a job, update the ruleset's required checks too.
+  - *Tests*: the unit tests on Python 3.9 and the newest Python.
+  - *Plugin validation*: `claude plugin validate . --profile directory`.
+  - *Commit messages*: the format of *Commits* on every commit; merge and `fixup!`/`squash!`/
+    `amend!` commits fail. A review fixup with a valid message, such as
+    `fix(scripts): address comments`, passes: check for those in review.
+  - *Gradle test*: runs Gradle only when `audit-facts.init.gradle`, `facts.py` or
+    `tests/test_facts.py` changes.
 - Title in the same Conventional Commits format, describing the PR as a whole.
 - Description: what changed, why, how it was tested (tests, control run, which agent).
 - Add the `ai` label when the PR is AI-assisted.
