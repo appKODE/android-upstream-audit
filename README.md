@@ -53,7 +53,7 @@ claude plugin update android-upstream-audit@android-upstream-audit
 - **The Android SDK** — through `ANDROID_HOME` or `local.properties`; otherwise the audit uses the
   location where Android Studio installs it and says so.
 - **A git checkout** with an `origin` remote that has the base branch.
-- **Python 3** (standard library only), `curl` and `git`.
+- **Python 3.9 or later** (standard library only; the `python3` of macOS works), `curl` and `git`.
 - **`gh`, recommended** — see [GitHub access](#github-access).
 
 ## Usage
