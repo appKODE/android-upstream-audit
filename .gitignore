@@ -4,3 +4,4 @@ __pycache__/
 .idea/
 .claude/settings.local.json
 upstream-audit/
+node_modules/
