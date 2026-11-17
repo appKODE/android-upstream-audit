@@ -1,0 +1,8 @@
+{
+  "name": "ci-tool-claude-code",
+  "private": true,
+  "description": "CI only: Claude Code for `claude plugin validate` (see .github/workflows/ci.yml). Not part of the plugin.",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.317"
+  }
+}

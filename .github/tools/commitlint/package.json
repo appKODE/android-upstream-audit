@@ -1,0 +1,8 @@
+{
+  "name": "ci-tool-commitlint",
+  "private": true,
+  "description": "CI only: commitlint for the Commit messages check (see .github/workflows/ci.yml). Not part of the plugin.",
+  "dependencies": {
+    "@commitlint/cli": "21.2.4"
+  }
+}
