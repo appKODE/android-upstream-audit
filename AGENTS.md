@@ -229,7 +229,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 - CI (`.github/workflows/ci.yml`) runs on every PR, and the ruleset of `main` requires its checks
   to pass: *Tests*, *Plugin validation* (`claude plugin validate . --profile directory`),
   *Commit messages* (every commit against *Commits*; merge and `fixup!`/`squash!` commits fail)
-  and *Gradle test* (runs Gradle only when `audit-facts.init.gradle` changes). When you rename
+  and *Gradle test* (runs Gradle only when `audit-facts.init.gradle`, `facts.py` or
+  `tests/test_facts.py` changes). When you rename
   a job, update the ruleset's required checks too.
 - Title in the same Conventional Commits format, describing the PR as a whole.
 - Description: what changed, why, how it was tested (tests, control run, which agent).
