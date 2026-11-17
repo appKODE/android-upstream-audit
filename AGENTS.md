@@ -25,6 +25,9 @@ another language. You may reply to the user in their language.
 ## Repository layout
 
 ```
+.github/
+  workflows/ci.yml        # checks on every pull request (see Pull requests)
+  commitlint.config.mjs   # commit message rules of Commits, checked by CI
 .claude-plugin/
   marketplace.json        # marketplace catalogue: one plugin entry, "source": "./"
   plugin.json             # plugin manifest: name, version, description
@@ -127,8 +130,8 @@ python3 -m unittest discover skills/android-upstream-audit/scripts/tests
 ```
 
 - Tests use no network and no Gradle, and take a few seconds. Keep them that way.
-- After changing `audit-facts.init.gradle`, also run them with `RUN_GRADLE_TESTS=1` and
-  `JAVA_HOME` set (one test runs Gradle on a tiny build).
+- After changing `audit-facts.init.gradle`, also run them with `RUN_GRADLE_TESTS=1`, `JAVA_HOME`
+  set and Gradle on `PATH` or in `GRADLE` (one test runs Gradle on a tiny build).
 - A bug fix comes with a test that fails without the fix.
 - Report the result honestly. Do not commit with failing tests.
 
@@ -223,6 +226,16 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   Before merging, fold fixups into the commits they fix (`git commit --fixup` and
   `git rebase -i --autosquash`); no "wip", "fix review" or "address comments" commits on `main`.
 - Rebase the branch on the current `main` instead of merging `main` into it; no merge commits.
+- CI (`.github/workflows/ci.yml`) runs on every PR, and the ruleset of `main` requires its checks
+  to pass. When you rename a job, update the ruleset's required checks too.
+  - *Tests*: the unit tests on Python 3.9 and the newest Python.
+  - *Plugin validation*: `claude plugin validate . --profile directory`.
+  - *Commit messages*: the format of *Commits* on every commit; merge and `fixup!`/`squash!`/
+    `amend!` commits fail. A review fixup with a valid message, such as
+    `fix(scripts): address comments`, passes: check for those in review.
+  - *Gradle test*: runs Gradle only when a file the Gradle test depends on changes:
+    `audit-facts.init.gradle`, `facts.py`, `common.py`, `tests/test_facts.py`, `tests/fixtures.py`
+    or `.github/workflows/ci.yml`. When the test starts to depend on another file, add it there.
 - Title in the same Conventional Commits format, describing the PR as a whole.
 - Description: what changed, why, how it was tested (tests, control run, which agent).
 - Add the `ai` label when the PR is AI-assisted.
