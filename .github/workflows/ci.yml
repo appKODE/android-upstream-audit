@@ -74,7 +74,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      # The version and every dependency are pinned in .github/tools/commitlint/package-lock.json.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: .github/tools/commitlint/package-lock.json
+      - run: npm ci --prefix .github/tools/commitlint --no-audit --no-fund
+      - name: Conventional Commits (AGENTS.md "Commits")
+        run: >
+          .github/tools/commitlint/node_modules/.bin/commitlint
+          --config .github/commitlint.config.mjs
+          --from "$BASE" --to "$HEAD" --verbose
+      # Runs even when commitlint fails, so both problems are reported at once.
       - name: No merge commits, no unsquashed fixups
+        if: success() || failure()
         run: |
           status=0
           merges=$(git rev-list --merges "$BASE..$HEAD")
@@ -90,22 +104,6 @@ jobs:
             status=1
           fi
           exit $status
-      # The version and every dependency are pinned in .github/tools/commitlint/package-lock.json.
-      # These steps run even when the step above fails, so both problems are reported at once.
-      - if: success() || failure()
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: .github/tools/commitlint/package-lock.json
-      - if: success() || failure()
-        run: npm ci --prefix .github/tools/commitlint --no-audit --no-fund
-      - name: Conventional Commits (AGENTS.md "Commits")
-        if: success() || failure()
-        run: >
-          .github/tools/commitlint/node_modules/.bin/commitlint
-          --config .github/commitlint.config.mjs
-          --from "$BASE" --to "$HEAD" --verbose
 
   gradle-test:
     # Always runs, so it can be a required check; Gradle runs only when the init script, the code
