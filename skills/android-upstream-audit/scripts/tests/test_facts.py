@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
 import urllib.parse
@@ -266,17 +267,36 @@ class Facts(unittest.TestCase):
         with open(log) as f:
             self.assertIn('SdkLocator.locate', f.read())
 
+def gradle_launcher():
+    """Gradle for the test build: $GRADLE, else the gradlew of the Gradle build that holds this
+    skill (its pinned Gradle version), else `gradle` on PATH. None when there is no Gradle."""
+    if os.environ.get('GRADLE'):  # a path or a command name on PATH
+        found = shutil.which(os.environ['GRADLE'])
+        # Absolute: facts.gradle() starts it from the test build's folder, where ./gradlew is not.
+        return os.path.abspath(found) if found else None
+    try:
+        gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
+        if os.path.isfile(gradlew):
+            return gradlew
+    except SystemExit:  # not inside a Gradle build
+        pass
+    return shutil.which('gradle')
+
+
 @unittest.skipUnless(os.environ.get('RUN_GRADLE_TESTS'),
-                     'runs Gradle (~20 s, needs a JDK): RUN_GRADLE_TESTS=1 after changing audit-facts.init.gradle')
+                     'runs Gradle (~20 s, needs a JDK and Gradle): RUN_GRADLE_TESTS=1 after changing '
+                     'audit-facts.init.gradle')
 class GradleFacts(unittest.TestCase):
     """The init script on a real, tiny Gradle build: an included build of convention plugins, a
     catalog, buildscript classpath dependencies, a jar in a fileTree and a module that only wraps
     an AAR."""
 
     def test_init_script_on_a_tiny_build(self):
-        gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
-        if not os.path.isfile(gradlew):
-            self.skipTest('no gradlew in the repository that holds this skill')
+        gradlew = gradle_launcher()
+        if not gradlew:  # asked to run Gradle: a skip here would pass without testing anything
+            if os.environ.get('GRADLE'):
+                self.fail(f"GRADLE={os.environ['GRADLE']}: no such file or command")
+            self.fail('no Gradle: put gradle on PATH or set GRADLE to its path')
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
         top = os.path.realpath(d.name)
