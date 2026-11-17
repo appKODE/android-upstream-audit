@@ -217,7 +217,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ## Pull requests
 
-- Title in the same Conventional Commits format (PRs are squash-merged).
+- PRs are **rebase-merged**: every commit of the PR lands on `main` as it is, so every commit
+  must follow *Commits* above, including the `Co-Authored-By` trailer.
+- Make each commit one meaningful step (e.g. the skill in one commit, its docs in another).
+  Before merging, fold fixups into the commits they fix (`git commit --fixup` and
+  `git rebase -i --autosquash`); no "wip", "fix review" or "address comments" commits on `main`.
+- Rebase the branch on the current `main` instead of merging `main` into it; no merge commits.
+- Title in the same Conventional Commits format, describing the PR as a whole.
 - Description: what changed, why, how it was tested (tests, control run, which agent).
 - Add the `ai` label when the PR is AI-assisted.
 - Reviews (by people or agents) check the change against **this file**, citing the section
