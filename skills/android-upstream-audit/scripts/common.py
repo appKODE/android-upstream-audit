@@ -33,7 +33,7 @@ DECISION_RE = re.compile(r'^(checked|declined|done)\s+(\d{4}-\d{2}-\d{2})\s+(\S+
 
 def curl(url: str, path: str | None = None, headers: list[str] | None = None) -> str | None:
     """Downloads with curl, not urllib: the system Python may ship without CA certificates.
-    Headers go through stdin, so a token never shows in the process list."""
+    Headers go through stdin (`-H @-`), not the command line."""
     cmd = ['curl', '-sSL', '--fail', '--max-time', '90', '-A', 'android-upstream-audit/1.0', url]
     if path:
         cmd += ['-o', path]

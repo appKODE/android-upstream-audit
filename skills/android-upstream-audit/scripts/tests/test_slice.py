@@ -438,7 +438,8 @@ class SliceScript(unittest.TestCase):
         self.assertEqual(code, 0, out)
         upkeep = next(line for line in out.splitlines() if line.startswith('upkeep line:'))
         for phrase in ['feed gap in Kotlin blog (12 days)', 'Android blog feed silent for 72 days',
-                       'GitHub queried with curl, gh is not installed', '1 dependencies not checked',
+                       'GitHub queried with curl, unauthenticated (60 requests an hour) — install and authenticate gh',
+                       '1 dependencies not checked',
                        '2 build-facts problems']:
             self.assertIn(phrase, upkeep)
         for coverage_line in ['- com.example:sdk 1.0 — needs credentials  [x:1]',

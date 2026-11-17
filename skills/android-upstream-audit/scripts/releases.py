@@ -20,8 +20,8 @@
 4. config.json against the project: a vendored artifact it does not name
    (UNCONFIGURED VENDORED), and an entry for a path the build no longer uses (STALE CONFIG).
 
-GitHub is asked through `gh` when it is installed, otherwise through curl (unauthenticated,
-60 requests an hour, or with GITHUB_TOKEN). `--out` writes releases.json for slice.py.
+GitHub is asked through `gh` when it is installed, otherwise through curl, unauthenticated
+(60 requests an hour). `--out` writes releases.json for slice.py.
 `--body` prints the notes of one release. Anything published on or after `--since`
 (default: the previous run's start) is marked NEW.
 """
@@ -67,8 +67,6 @@ def github(path, client):
             raise RuntimeError((r.stderr or r.stdout).strip().split('\n')[0])
         return json.loads(r.stdout)
     headers = ['Accept: application/vnd.github+json']
-    if os.environ.get('GITHUB_TOKEN'):
-        headers.append(f"Authorization: Bearer {os.environ['GITHUB_TOKEN']}")
     return json.loads(common.curl('https://api.github.com/' + path, headers=headers))
 
 
@@ -435,8 +433,8 @@ def main():
     if client == 'gh':
         print('## GitHub API client: gh')
     else:
-        print('## GitHub API client: curl — gh is not installed; install gh for authenticated requests '
-              f"({'GITHUB_TOKEN is set' if os.environ.get('GITHUB_TOKEN') else 'unauthenticated, 60 requests an hour'})")
+        print('## GitHub API client: curl — gh is not installed; unauthenticated, 60 requests an hour; '
+              'install and authenticate gh for more')
 
     checked = [e for e in entries if e['version']]
     unique = sorted({e['coord'] for e in checked})
