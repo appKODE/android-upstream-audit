@@ -271,7 +271,9 @@ def gradle_launcher():
     """Gradle for the test build: $GRADLE, else the gradlew of the Gradle build that holds this
     skill (its pinned Gradle version), else `gradle` on PATH. None when there is no Gradle."""
     if os.environ.get('GRADLE'):  # a path or a command name on PATH
-        return shutil.which(os.environ['GRADLE'])
+        found = shutil.which(os.environ['GRADLE'])
+        # Absolute: facts.gradle() starts it from the test build's folder, where ./gradlew is not.
+        return os.path.abspath(found) if found else None
     try:
         gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
         if os.path.isfile(gradlew):
@@ -292,6 +294,8 @@ class GradleFacts(unittest.TestCase):
     def test_init_script_on_a_tiny_build(self):
         gradlew = gradle_launcher()
         if not gradlew:  # asked to run Gradle: a skip here would pass without testing anything
+            if os.environ.get('GRADLE'):
+                self.fail(f"GRADLE={os.environ['GRADLE']}: no such file or command")
             self.fail('no Gradle: put gradle on PATH or set GRADLE to its path')
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
