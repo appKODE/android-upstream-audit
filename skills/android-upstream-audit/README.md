@@ -20,7 +20,8 @@ with `cases.md`, `slice-format.md` and `digest.md` read at the step that needs t
   git worktree has neither; then `facts.py` passes the SDK from where Android Studio installs it
   (`~/Library/Android/sdk`, `~/Android/Sdk`, `%LOCALAPPDATA%\Android\Sdk`) and says so.
 - **A git checkout** with an `origin` remote that has the base branch.
-- **Python 3**, standard library only, plus `curl` and `git`.
+- **Python 3.9 or later**, standard library only (the `python3` of macOS works), plus `curl` and
+  `git`.
 - **`gh`, recommended.** Without it the GitHub API is asked through curl: 60 requests an
   hour, or more with `GITHUB_TOKEN` set. The report then says so in the upkeep line.
 - Network access to `api.deps.dev`, `api.github.com`, the project's Maven repositories and the

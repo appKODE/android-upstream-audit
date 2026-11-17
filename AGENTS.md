@@ -83,8 +83,9 @@ license: MIT
 
 ## Scripts
 
-- Python 3 standard library only; no third-party packages. Shell tools allowed: `git`, `curl`,
-  `gh` (optional, with a `curl` fallback).
+- Python 3.9 or later, standard library only; no third-party packages. Code must run on 3.9 (the
+  `python3` of macOS) and on the newest Python: CI runs the tests on both.
+- Shell tools allowed: `git`, `curl`, `gh` (optional, with a `curl` fallback).
 - Scripts find their own folder from `__file__`. Do not rely on `${CLAUDE_PLUGIN_ROOT}`: it is
   not set in Bash commands.
 - Keep all state in the audited project (`upstream-audit/`). Do not write to
