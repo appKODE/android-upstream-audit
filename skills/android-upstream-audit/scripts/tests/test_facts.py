@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
 import urllib.parse
@@ -266,17 +267,33 @@ class Facts(unittest.TestCase):
         with open(log) as f:
             self.assertIn('SdkLocator.locate', f.read())
 
+def gradle_launcher():
+    """Gradle for the test build: $GRADLE, else `gradle` on PATH, else the gradlew of the Gradle
+    build that holds this skill, if it is inside one. None when there is no Gradle."""
+    if os.environ.get('GRADLE'):
+        return os.environ['GRADLE']
+    on_path = shutil.which('gradle')
+    if on_path:
+        return on_path
+    try:
+        gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
+    except SystemExit:  # not inside a Gradle build
+        return None
+    return gradlew if os.path.isfile(gradlew) else None
+
+
 @unittest.skipUnless(os.environ.get('RUN_GRADLE_TESTS'),
-                     'runs Gradle (~20 s, needs a JDK): RUN_GRADLE_TESTS=1 after changing audit-facts.init.gradle')
+                     'runs Gradle (~20 s, needs a JDK and Gradle): RUN_GRADLE_TESTS=1 after changing '
+                     'audit-facts.init.gradle')
 class GradleFacts(unittest.TestCase):
     """The init script on a real, tiny Gradle build: an included build of convention plugins, a
     catalog, buildscript classpath dependencies, a jar in a fileTree and a module that only wraps
     an AAR."""
 
     def test_init_script_on_a_tiny_build(self):
-        gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
-        if not os.path.isfile(gradlew):
-            self.skipTest('no gradlew in the repository that holds this skill')
+        gradlew = gradle_launcher()
+        if not gradlew:  # asked to run Gradle: a skip here would pass without testing anything
+            self.fail('no Gradle: put gradle on PATH or set GRADLE to its path')
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
         top = os.path.realpath(d.name)

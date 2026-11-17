@@ -6,8 +6,8 @@ Run every test from the repository root:
     python3 -m unittest discover skills/android-upstream-audit/scripts/tests
 
 Standard library only, no network, about five seconds. After changing
-audit-facts.init.gradle, also run them with RUN_GRADLE_TESTS=1 and JAVA_HOME set: one test runs
-Gradle on a tiny build.
+audit-facts.init.gradle, also run them with RUN_GRADLE_TESTS=1, JAVA_HOME set and Gradle on PATH
+(or GRADLE=<path to gradle>): one test runs Gradle on a tiny build.
 """
 import json
 import os
