@@ -13,11 +13,13 @@ from fixtures import CONFIG, KEY, FakeRepo  # noqa: E402
 class Common(unittest.TestCase):
     def test_broken_json_names_file_and_line(self):
         with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as f:
-            f.write('{\n "a": 1,\n}')
+            # A missing comma: every Python reports it at the same place. A trailing comma is
+            # reported on line 2 by Python 3.13+ and on line 3 by older ones.
+            f.write('{\n "a": 1\n "b": 2\n}')
         try:
             with self.assertRaises(SystemExit) as e:
                 common.load_json(f.name, 'the edits file')
-            self.assertIn('line 2', str(e.exception))  # the trailing comma
+            self.assertIn('line 3, column 2', str(e.exception))  # the missing comma
             self.assertIn(f.name, str(e.exception))
         finally:
             os.unlink(f.name)
