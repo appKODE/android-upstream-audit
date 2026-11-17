@@ -108,7 +108,8 @@ jobs:
 
   gradle-test:
     # Always runs, so it can be a required check; Gradle runs only when the init script, the code
-    # that runs it and reads its output (facts.py), the Gradle test or this workflow changes.
+    # that runs it and reads its output (facts.py, common.py), the Gradle test and its fixtures or
+    # this workflow changes.
     name: Gradle test
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -121,10 +122,10 @@ jobs:
       - name: Did the Gradle side change?
         id: changes
         run: |
-          if git diff --name-only "$BASE...$HEAD" | grep -qxE 'skills/android-upstream-audit/scripts/(audit-facts\.init\.gradle|facts\.py|tests/test_facts\.py)|\.github/workflows/ci\.yml'; then
+          if git diff --name-only "$BASE...$HEAD" | grep -qxE 'skills/android-upstream-audit/scripts/(audit-facts\.init\.gradle|facts\.py|common\.py|tests/test_facts\.py|tests/fixtures\.py)|\.github/workflows/ci\.yml'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "audit-facts.init.gradle, facts.py and tests/test_facts.py did not change: nothing to run."
+            echo "Nothing the Gradle test depends on changed: nothing to run."
           fi
       - if: steps.changes.outputs.run == 'true'
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
