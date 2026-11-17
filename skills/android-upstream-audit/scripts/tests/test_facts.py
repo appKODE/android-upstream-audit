@@ -270,8 +270,8 @@ class Facts(unittest.TestCase):
 def gradle_launcher():
     """Gradle for the test build: $GRADLE, else the gradlew of the Gradle build that holds this
     skill (its pinned Gradle version), else `gradle` on PATH. None when there is no Gradle."""
-    if os.environ.get('GRADLE'):
-        return os.environ['GRADLE']
+    if os.environ.get('GRADLE'):  # a path or a command name on PATH
+        return shutil.which(os.environ['GRADLE'])
     try:
         gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
         if os.path.isfile(gradlew):
