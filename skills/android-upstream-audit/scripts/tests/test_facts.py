@@ -268,18 +268,17 @@ class Facts(unittest.TestCase):
             self.assertIn('SdkLocator.locate', f.read())
 
 def gradle_launcher():
-    """Gradle for the test build: $GRADLE, else `gradle` on PATH, else the gradlew of the Gradle
-    build that holds this skill, if it is inside one. None when there is no Gradle."""
+    """Gradle for the test build: $GRADLE, else the gradlew of the Gradle build that holds this
+    skill (its pinned Gradle version), else `gradle` on PATH. None when there is no Gradle."""
     if os.environ.get('GRADLE'):
         return os.environ['GRADLE']
-    on_path = shutil.which('gradle')
-    if on_path:
-        return on_path
     try:
         gradlew = os.path.join(common.repo_root(SCRIPTS), 'gradlew')
+        if os.path.isfile(gradlew):
+            return gradlew
     except SystemExit:  # not inside a Gradle build
-        return None
-    return gradlew if os.path.isfile(gradlew) else None
+        pass
+    return shutil.which('gradle')
 
 
 @unittest.skipUnless(os.environ.get('RUN_GRADLE_TESTS'),
