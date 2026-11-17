@@ -22,8 +22,9 @@ with `cases.md`, `slice-format.md` and `digest.md` read at the step that needs t
 - **A git checkout** with an `origin` remote that has the base branch.
 - **Python 3.9 or later**, standard library only (the `python3` of macOS works), plus `curl` and
   `git`.
-- **`gh`, recommended.** Without it the GitHub API is asked through curl: 60 requests an
-  hour, or more with `GITHUB_TOKEN` set. The report then says so in the upkeep line.
+- **`gh`, recommended.** Install it and run `gh auth login` for authenticated requests. Without
+  it, or with `gh` not logged in, the GitHub API is asked through curl, unauthenticated: 60 requests an hour, usually enough
+  for a run; a large project can need more. The report then says so in the upkeep line.
 - Network access to `api.deps.dev`, `api.github.com`, the project's Maven repositories and the
   documentation sites.
 
@@ -138,8 +139,9 @@ decisions.txt is written only by people, config.json only by --init; a run reads
 ## The scripts
 
 All in `scripts/`, standard library Python plus `curl` and `git`. `gh` is used for the GitHub
-API when installed; without it the scripts use curl, unauthenticated (60 requests an hour,
-enough for a run) or with `GITHUB_TOKEN`, and the digest's upkeep line says so.
+API when installed, authenticated however `gh` is; without it the scripts use curl,
+unauthenticated (60 requests an hour, usually enough for a run; a large project can need more),
+and the digest's upkeep line says so.
 
 | Script | Role | What it does |
 |---|---|---|
