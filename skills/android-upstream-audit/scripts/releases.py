@@ -20,8 +20,8 @@
 4. config.json against the project: a vendored artifact it does not name
    (UNCONFIGURED VENDORED), and an entry for a path the build no longer uses (STALE CONFIG).
 
-GitHub is asked through `gh` when it is installed, otherwise through curl, unauthenticated
-(60 requests an hour). `--out` writes releases.json for slice.py.
+GitHub is asked through `gh` when it is installed and logged in, otherwise through curl,
+unauthenticated (60 requests an hour). `--out` writes releases.json for slice.py.
 `--body` prints the notes of one release. Anything published on or after `--since`
 (default: the previous run's start) is marked NEW.
 """
@@ -57,7 +57,21 @@ DORMANT_DAYS = 730
 
 
 def github_client():
-    return 'gh' if shutil.which('gh') else 'curl'
+    """('gh', None) when gh is installed and logged in to github.com, else ('curl', why).
+    A gh that is not logged in fails every call, while curl still has 60 an hour. Only the exit
+    code of `gh auth status` is used: its output names the account and a masked token."""
+    if not shutil.which('gh'):
+        return 'curl', ('gh is not installed; unauthenticated, 60 requests an hour; '
+                        'install gh and run `gh auth login` for more')
+    try:
+        r = subprocess.run(['gh', 'auth', 'status', '--hostname', 'github.com'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return 'curl', '`gh auth status` failed; unauthenticated, 60 requests an hour'
+    if r.returncode != 0:
+        return 'curl', ('gh is installed but not logged in; unauthenticated, 60 requests an hour; '
+                        'run `gh auth login` for more')
+    return 'gh', None
 
 
 def github(path, client):
@@ -415,7 +429,7 @@ def main():
     p.add_argument('--since')
     p.add_argument('--body', metavar='OWNER/REPO@TAG', help='print the notes of one GitHub release')
     args = p.parse_args()
-    client = github_client()
+    client, why = github_client()
 
     if args.body:
         repo, _, tag = args.body.partition('@')
@@ -433,8 +447,7 @@ def main():
     if client == 'gh':
         print('## GitHub API client: gh')
     else:
-        print('## GitHub API client: curl — gh is not installed; unauthenticated, 60 requests an hour; '
-              'install and authenticate gh for more')
+        print(f'## GitHub API client: curl — {why}')
 
     checked = [e for e in entries if e['version']]
     unique = sorted({e['coord'] for e in checked})

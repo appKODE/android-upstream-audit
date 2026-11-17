@@ -234,8 +234,8 @@ serialization), for every pin with a suffix or on a pre-release, and for the `re
 `config.json`; head commits for its `commits` and for the upstream of each vendored artifact.
 A pin deps.dev links to no repository is printed as `PIN WITHOUT REPOSITORY`. AndroidX pins
 are not: AndroidX has no GitHub releases, so they share one `ANDROIDX PINS` line, and a pin
-that matters is read on its group's release-notes page. Without `gh`
-the script asks GitHub through curl and says so on its first line.
+that matters is read on its group's release-notes page. Without `gh`, or with `gh` not logged
+in, the script asks GitHub through curl and says so on its first line.
 
 What its output is for:
 
