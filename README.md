@@ -120,17 +120,17 @@ people, never by the audit.
 
 ### GitHub access
 
-GitHub allows 60 unauthenticated API requests an hour; a large project can need more.
+GitHub allows 60 unauthenticated API requests an hour. That is usually enough for a run; a
+large project, or several runs an hour from one network, can need more.
 
-- **`gh` installed** — requests go through `gh api`, authenticated however you logged in
-  (`gh auth login`). The audit never sees the token.
-- **No `gh`** — requests go through `curl`. If the `GITHUB_TOKEN` environment variable is set,
-  the audit reads it and sends it **only** to `api.github.com` as the `Authorization` header; it
-  is never written to a file or a report. Without it, requests are unauthenticated and the report
-  says so.
+- **`gh` installed and logged in** — requests go through `gh api`, authenticated however you
+  logged in (`gh auth login`). The audit never sees the token.
+- **No `gh`, or `gh` not logged in** — requests go through `curl`, unauthenticated: 60 requests
+  an hour. The report says so.
 
-Installing and authenticating `gh` is the recommended way. A future version will stop reading
-`GITHUB_TOKEN` and use `gh` as the only authenticated path.
+Installing and authenticating `gh` is the recommended way. The audit never reads a token itself;
+`gh` reads `GH_TOKEN` / `GITHUB_TOKEN` on its own, so a CI job with only a token gets
+authenticated requests by installing `gh`.
 
 ## Things to know
 
