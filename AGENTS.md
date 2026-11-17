@@ -235,8 +235,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>
   - *Commit messages*: the format of *Commits* on every commit; merge and `fixup!`/`squash!`/
     `amend!` commits fail. A review fixup with a valid message, such as
     `fix(scripts): address comments`, passes: check for those in review.
-  - *Gradle test*: runs Gradle only when `audit-facts.init.gradle`, `facts.py` or
-    `tests/test_facts.py` changes.
+  - *Gradle test*: runs Gradle only when a file the Gradle test depends on changes:
+    `audit-facts.init.gradle`, `facts.py`, `common.py`, `tests/test_facts.py`, `tests/fixtures.py`
+    or `.github/workflows/ci.yml`. When the test starts to depend on another file, add it there.
 - Title in the same Conventional Commits format, describing the PR as a whole.
 - Description: what changed, why, how it was tested (tests, control run, which agent).
 - Add the `ai` label when the PR is AI-assisted.
