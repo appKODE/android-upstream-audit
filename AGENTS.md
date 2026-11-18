@@ -28,6 +28,7 @@ another language. You may reply to the user in their language.
 .github/
   workflows/ci.yml        # checks on every pull request (see Pull requests)
   commitlint.config.mjs   # commit message rules of Commits, checked by CI
+  social-preview.png      # cover image: top of README.md and the repository's social preview
   tools/*/package*.json   # CI only: exact versions of the npm tools CI runs, with lock files
 .claude-plugin/
   marketplace.json        # marketplace catalogue: one plugin entry, "source": "./"
