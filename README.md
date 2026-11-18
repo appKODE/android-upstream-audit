@@ -139,6 +139,12 @@ authenticated requests by installing `gh`.
   and says why.
 - **Which copy runs.** If a project also has a copy of the skill in `.claude/skills/`, Claude Code
   may run that copy instead of the plugin.
+- **Two runs do not write the same report.** Versions, dates and dependencies come from
+  scripts and are the same on every run. Which upstream items become findings, their severity
+  and wording come from the model, so two runs on the same commit, even with the same model,
+  can differ in a few findings. Check *Considered and dropped* and *Coverage* before you trust
+  a "nothing new". Details:
+  [What is the same on every run, and what is not](skills/android-upstream-audit/README.md#what-is-the-same-on-every-run-and-what-is-not).
 
 How the audit works inside — files, scripts, the report format and how to answer findings — is in
 [`skills/android-upstream-audit/README.md`](skills/android-upstream-audit/README.md).
