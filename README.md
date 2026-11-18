@@ -1,5 +1,7 @@
 # android-upstream-audit
 
+![android-upstream-audit: what changed upstream since the last check, and what your Android project has to act on](.github/social-preview.png)
+
 A [Claude Code](https://code.claude.com) plugin that tells an Android team **what changed
 upstream since the last check that the project has to act on**: Kotlin and KSP releases, AGP and
 Gradle, Google Play requirements and deadlines, new Android API levels, AndroidX and Jetpack
